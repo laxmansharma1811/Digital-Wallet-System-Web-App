@@ -19,4 +19,9 @@ urlpatterns = [
 
     path('wallet/categories/', views.manage_categories, name='manage_categories'),
     path('wallet/tags/', views.manage_tags, name='manage_tags'),
+
+
+    path('kyc/', views.kyc_submission, name='kyc_submission'),
+    path('kyc/review/', views.kyc_review_list, name='kyc_review_list'),
+    path('kyc/review/<int:kyc_id>/', views.kyc_review_detail, name='kyc_review_detail'),
 ]

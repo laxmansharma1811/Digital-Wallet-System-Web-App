@@ -6,4 +6,14 @@
 <a href="{% url 'wallet' %}">My Wallet</a>
 <br>
 <a href="{% url 'logout' %}">Logout</a>
+
+
+
+{% if not request.user.kyc or request.user.kyc.status != 'approved' %}
+<a href="{% url 'kyc_submission' %}" class="btn btn-warning">Complete KYC Verification</a>
+{% endif %}
+
+{% if request.user.is_staff %}
+<a href="{% url 'kyc_review_list' %}" class="btn btn-info">Review KYC Submissions</a>
+{% endif %}
 {% endblock %}

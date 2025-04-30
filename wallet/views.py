@@ -93,6 +93,14 @@ def wallet_view(request):
     if end_date:
         transactions = transactions.filter(timestamp__lte=end_date)
     
+    try:
+        kyc_status = request.user.kyc.status
+    except:
+        kyc_status = None
+    
+    if kyc_status != 'approved':
+        messages.warning(request, 'Please complete KYC verification to access all wallet features')
+        
     # Pagination
     paginator = Paginator(transactions, 5)  # Show 5 transactions per page
     page_number = request.GET.get('page')
