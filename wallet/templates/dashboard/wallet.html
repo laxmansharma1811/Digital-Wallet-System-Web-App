@@ -1,0 +1,29 @@
+{% extends 'accounts/base.html' %}
+
+{% block content %}
+<h2>My Wallet</h2>
+<p>Balance: ${{ wallet.balance }}</p>
+
+<div>
+    <a href="{% url 'deposit' %}">Deposit</a>
+    <a href="{% url 'withdraw' %}">Withdraw</a>
+    <a href="{% url 'transfer' %}">Transfer</a>
+</div>
+
+<h3>Recent Transactions</h3>
+<ul>
+    {% for transaction in transactions %}
+    <li>
+        {{ transaction.transaction_type|title }}: ${{ transaction.amount }}
+        <br>
+        <small>{{ transaction.timestamp }} - {{ transaction.description }}</small>
+        {% if transaction.recipient %}
+        <br>
+        <small>To: {{ transaction.recipient.email }}</small>
+        {% endif %}
+    </li>
+    {% empty %}
+    <li>No transactions yet.</li>
+    {% endfor %}
+</ul>
+{% endblock %}
