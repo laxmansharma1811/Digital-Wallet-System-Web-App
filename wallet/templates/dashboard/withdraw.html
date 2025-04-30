@@ -10,5 +10,18 @@
     </div>
     <button type="submit">Withdraw</button>
 </form>
+<div>
+    <label>Category:</label>
+    <select name="category">
+        <option value="">None</option>
+        {% for category in request.user.categories.all %}
+        <option value="{{ category.id }}">{{ category.name }}</option>
+        {% endfor %}
+    </select>
+</div>
+<div>
+    <label>Tags (comma separated):</label>
+    <input type="text" name="tags" placeholder="food, entertainment, shopping">
+</div>
 <a href="{% url 'wallet' %}">Back to Wallet</a>
 {% endblock %}

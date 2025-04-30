@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h2>Manage Categories</h2>
+
+<div style="display: flex; gap: 30px;">
+    <div style="flex: 1;">
+        <h3>Add New Category</h3>
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="add">
+            <div>
+                <label>Category Name:</label>
+                <input type="text" name="name" required>
+            </div>
+            <div>
+                <label>Parent Category (optional):</label>
+                <select name="parent">
+                    <option value="">None</option>
+                    {% for category in parent_categories %}
+                    <option value="{{ category.id }}">{{ category.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit">Add Category</button>
+        </form>
+    </div>
+
+    <div style="flex: 1;">
+        <h3>Your Categories</h3>
+        <ul>
+            {% for category in categories %}
+            <li>
+                {{ category.name }}
+                {% if category.parent %} (under {{ category.parent.name }}){% endif %}
+                <form method="post" style="display: inline;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="delete">
+                    <input type="hidden" name="category_id" value="{{ category.id }}">
+                    <button type="submit" style="color: red; border: none; background: none; cursor: pointer;">×</button>
+                </form>
+            </li>
+            {% empty %}
+            <li>No categories yet.</li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+
+<a href="{% url 'wallet' %}">Back to Wallet</a>
+{% endblock %}

@@ -126,7 +126,8 @@ def deposit_view(request):
                     wallet=wallet,
                     amount=amount,
                     transaction_type='deposit',
-                    description=f"Deposit of ${amount}"
+                    description=f"Deposit of ${amount}",
+                    category_id=request.POST.get('category'),
                 )
                 
             messages.success(request, f'Successfully deposited ${amount}')
@@ -163,7 +164,8 @@ def withdraw_view(request):
                     wallet=wallet,
                     amount=amount,
                     transaction_type='withdrawal',
-                    description=f"Withdrawal of ${amount}"
+                    description=f"Withdrawal of ${amount}",
+                    category_id=request.POST.get('category'),
                 )
                 
             messages.success(request, f'Successfully withdrew ${amount}')
@@ -222,7 +224,8 @@ def transfer_view(request):
                     amount=amount,
                     transaction_type='transfer',
                     description=f"Transfer from {request.user.email}",
-                    recipient=request.user
+                    recipient=request.user,
+                    category_id=request.POST.get('category'),
                 )
                 
             messages.success(request, f'Successfully transferred ${amount} to {recipient.email}')
@@ -242,3 +245,273 @@ def transfer_view(request):
 def transaction_detail_view(request, transaction_id):
     transaction = get_object_or_404(Transaction, id=transaction_id, wallet__user=request.user)
     return render(request, 'accounts/transaction_detail.html', {'transaction': transaction})
+
+
+
+
+
+import csv
+from django.http import HttpResponse
+from io import BytesIO
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.units import inch
+
+@login_required
+def export_transactions_csv(request):
+    wallet = Wallet.objects.get(user=request.user)
+    transactions = wallet.transactions.all().order_by('-timestamp')
+    
+    # Apply filters if they exist
+    transaction_type = request.GET.get('type')
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    
+    if transaction_type:
+        transactions = transactions.filter(transaction_type=transaction_type)
+    if start_date:
+        transactions = transactions.filter(timestamp__gte=start_date)
+    if end_date:
+        transactions = transactions.filter(timestamp__lte=end_date)
+    
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="transactions.csv"'
+    
+    writer = csv.writer(response)
+    writer.writerow(['Date', 'Type', 'Amount', 'Description', 'Recipient'])
+    
+    for t in transactions:
+        writer.writerow([
+            t.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+            t.get_transaction_type_display(),
+            f"${t.amount}",
+            t.description,
+            t.recipient.email if t.recipient else ''
+        ])
+    
+    return response
+
+@login_required
+def export_transactions_pdf(request):
+    wallet = Wallet.objects.get(user=request.user)
+    transactions = wallet.transactions.all().order_by('-timestamp')
+    
+    # Apply filters if they exist
+    transaction_type = request.GET.get('type')
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    
+    if transaction_type:
+        transactions = transactions.filter(transaction_type=transaction_type)
+    if start_date:
+        transactions = transactions.filter(timestamp__gte=start_date)
+    if end_date:
+        transactions = transactions.filter(timestamp__lte=end_date)
+    
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=letter)
+    
+    # PDF Header
+    p.setFont("Helvetica-Bold", 16)
+    p.drawString(1*inch, 10.5*inch, "Transaction History")
+    p.setFont("Helvetica", 12)
+    p.drawString(1*inch, 10*inch, f"Account: {request.user.email}")
+    p.drawString(1*inch, 9.7*inch, f"Period: {start_date or 'Start'} to {end_date or 'End'}")
+    p.drawString(1*inch, 9.4*inch, f"Current Balance: ${wallet.balance}")
+    
+    # Table Header
+    p.setFont("Helvetica-Bold", 10)
+    p.drawString(1*inch, 9*inch, "Date")
+    p.drawString(2.5*inch, 9*inch, "Type")
+    p.drawString(4*inch, 9*inch, "Amount")
+    p.drawString(5.5*inch, 9*inch, "Description")
+    p.line(1*inch, 8.9*inch, 7.5*inch, 8.9*inch)
+    
+    # Table Content
+    p.setFont("Helvetica", 10)
+    y = 8.7*inch
+    for t in transactions:
+        if y < 1*inch:  # New page if we're at the bottom
+            p.showPage()
+            y = 9.5*inch
+            # Repeat header on new page
+            p.setFont("Helvetica-Bold", 10)
+            p.drawString(1*inch, y, "Date")
+            p.drawString(2.5*inch, y, "Type")
+            p.drawString(4*inch, y, "Amount")
+            p.drawString(5.5*inch, y, "Description")
+            p.line(1*inch, y-0.1*inch, 7.5*inch, y-0.1*inch)
+            y -= 0.3*inch
+        
+        p.drawString(1*inch, y, t.timestamp.strftime('%Y-%m-%d'))
+        p.drawString(2.5*inch, y, t.get_transaction_type_display())
+        p.drawString(4*inch, y, f"${t.amount}")
+        p.drawString(5.5*inch, y, t.description[:30] + ('...' if len(t.description) > 30 else ''))
+        y -= 0.25*inch
+    
+    p.save()
+    
+    buffer.seek(0)
+    response = HttpResponse(buffer, content_type='application/pdf')
+    response['Content-Disposition'] = 'attachment; filename="transactions.pdf"'
+    return response
+
+
+from .models import *
+
+@login_required
+def manage_categories(request):
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        
+        if action == 'add':
+            name = request.POST.get('name')
+            parent_id = request.POST.get('parent')
+            
+            if name:
+                parent = Category.objects.get(id=parent_id) if parent_id else None
+                Category.objects.create(
+                    name=name,
+                    user=request.user,
+                    parent=parent
+                )
+                messages.success(request, 'Category added successfully.')
+        
+        elif action == 'delete':
+            category_id = request.POST.get('category_id')
+            Category.objects.filter(id=category_id, user=request.user).delete()
+            messages.success(request, 'Category deleted successfully.')
+            
+        return redirect('manage_categories')
+    
+    categories = Category.objects.filter(user=request.user)
+    return render(request, 'dashboard/manage_categories.html', {
+        'categories': categories,
+        'parent_categories': categories.filter(parent=None)
+    })
+
+@login_required
+def manage_tags(request):
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        
+        if action == 'add':
+            name = request.POST.get('name')
+            if name:
+                Tag.objects.create(name=name, user=request.user)
+                messages.success(request, 'Tag added successfully.')
+        
+        elif action == 'delete':
+            tag_id = request.POST.get('tag_id')
+            Tag.objects.filter(id=tag_id, user=request.user).delete()
+            messages.success(request, 'Tag deleted successfully.')
+            
+        return redirect('manage_tags')
+    
+    tags = Tag.objects.filter(user=request.user)
+    return render(request, 'dashboard/manage_tags.html', {'tags': tags})
+
+
+
+
+
+from django.core.files.storage import FileSystemStorage
+from django.conf import settings
+from django.utils import timezone
+from django.contrib.auth.decorators import user_passes_test
+
+
+@login_required
+def kyc_submission(request):
+    try:
+        kyc = request.user.kyc
+    except KYCVerification.DoesNotExist:
+        kyc = None
+
+    if request.method == 'POST':
+        # Basic validation
+        document_type = request.POST.get('document_type')
+        document_number = request.POST.get('document_number')
+        document_front = request.FILES.get('document_front')
+        document_back = request.FILES.get('document_back')
+        selfie = request.FILES.get('selfie')
+
+        if not all([document_type, document_number, document_front, selfie]):
+            messages.error(request, 'Please fill all required fields')
+            return redirect('kyc_submission')
+
+        # Check file sizes
+        for uploaded_file in [document_front, document_back, selfie]:
+            if uploaded_file and uploaded_file.size > settings.MAX_UPLOAD_SIZE:
+                messages.error(request, 'File size should not exceed 5MB')
+                return redirect('kyc_submission')
+
+        # Save or update KYC
+        if kyc:
+            kyc.document_type = document_type
+            kyc.document_number = document_number
+            kyc.status = 'pending'
+            kyc.rejection_reason = ''
+            if document_front:
+                kyc.document_front = document_front
+            if document_back:
+                kyc.document_back = document_back
+            if selfie:
+                kyc.selfie = selfie
+            kyc.save()
+        else:
+            kyc = KYCVerification.objects.create(
+                user=request.user,
+                document_type=document_type,
+                document_number=document_number,
+                document_front=document_front,
+                document_back=document_back,
+                selfie=selfie
+            )
+
+        messages.success(request, 'KYC documents submitted successfully!')
+        return redirect('dashboard')
+
+    context = {
+        'kyc': kyc,
+        'document_types': settings.ALLOWED_DOCUMENT_TYPES,
+    }
+    return render(request, 'verification/kyc_submission.html', context)
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def kyc_review_list(request):
+    pending_kycs = KYCVerification.objects.filter(status='pending')
+    return render(request, 'verification/kyc_review_list.html', {'pending_kycs': pending_kycs})
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def kyc_review_detail(request, kyc_id):
+    kyc = get_object_or_404(KYCVerification, id=kyc_id)
+    
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        
+        if action == 'approve':
+            kyc.status = 'approved'
+            kyc.reviewed_at = timezone.now()
+            kyc.reviewer = request.user
+            kyc.save()
+            messages.success(request, 'KYC approved successfully')
+            
+        elif action == 'reject':
+            reason = request.POST.get('rejection_reason')
+            if not reason:
+                messages.error(request, 'Please provide a rejection reason')
+                return redirect('kyc_review_detail', kyc_id=kyc_id)
+                
+            kyc.status = 'rejected'
+            kyc.reviewed_at = timezone.now()
+            kyc.reviewer = request.user
+            kyc.rejection_reason = reason
+            kyc.save()
+            messages.success(request, 'KYC rejected')
+            
+        return redirect('kyc_review_list')
+    
+    return render(request, 'verification/kyc_review_detail.html', {'kyc': kyc})

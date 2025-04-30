@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h2>Manage Tags</h2>
+
+<div style="display: flex; gap: 30px;">
+    <div style="flex: 1;">
+        <h3>Add New Tag</h3>
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="add">
+            <div>
+                <label>Tag Name:</label>
+                <input type="text" name="name" required>
+            </div>
+            <button type="submit">Add Tag</button>
+        </form>
+    </div>
+
+    <div style="flex: 1;">
+        <h3>Your Tags</h3>
+        <ul>
+            {% for tag in tags %}
+            <li>
+                {{ tag.name }}
+                <form method="post" style="display: inline;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="delete">
+                    <input type="hidden" name="tag_id" value="{{ tag.id }}">
+                    <button type="submit" style="color: red; border: none; background: none; cursor: pointer;">×</button>
+                </form>
+            </li>
+            {% empty %}
+            <li>No tags yet.</li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+
+<a href="{% url 'wallet' %}">Back to Wallet</a>
+{% endblock %}
