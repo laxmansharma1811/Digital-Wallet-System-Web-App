@@ -1,4 +1,4 @@
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -72,15 +72,36 @@ def logout_view(request):
 from decimal import Decimal
 from django.db import transaction as db_transaction
 from .models import Wallet, Transaction
+from django.core.paginator import Paginator
+
 
 @login_required
 def wallet_view(request):
     wallet, created = Wallet.objects.get_or_create(user=request.user)
-    transactions = wallet.transactions.all().order_by('-timestamp')[:10]
+    transactions = wallet.transactions.all().order_by('-timestamp')
+    
+    # Filtering
+    transaction_type = request.GET.get('type')
+    if transaction_type:
+        transactions = transactions.filter(transaction_type=transaction_type)
+    
+    # Date filtering
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    if start_date:
+        transactions = transactions.filter(timestamp__gte=start_date)
+    if end_date:
+        transactions = transactions.filter(timestamp__lte=end_date)
+    
+    # Pagination
+    paginator = Paginator(transactions, 5)  # Show 5 transactions per page
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
     
     context = {
         'wallet': wallet,
-        'transactions': transactions,
+        'page_obj': page_obj,
+        'transaction_types': dict(Transaction.TRANSACTION_TYPES),
     }
     return render(request, 'dashboard/wallet.html', context)
 
@@ -115,7 +136,7 @@ def deposit_view(request):
             messages.error(request, 'Invalid amount.')
             return redirect('deposit')
             
-    return render(request, 'dashboard/deposit.html')
+    return render(request, 'dashboard/deposite.html')
 
 @login_required
 def withdraw_view(request):
@@ -215,3 +236,9 @@ def transfer_view(request):
             return redirect('transfer')
             
     return render(request, 'dashboard/transfer.html')
+
+
+@login_required
+def transaction_detail_view(request, transaction_id):
+    transaction = get_object_or_404(Transaction, id=transaction_id, wallet__user=request.user)
+    return render(request, 'accounts/transaction_detail.html', {'transaction': transaction})

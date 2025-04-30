@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h2>Transaction Details</h2>
+<p><strong>Type:</strong> {{ transaction.get_transaction_type_display }}</p>
+<p><strong>Amount:</strong> ${{ transaction.amount }}</p>
+<p><strong>Date:</strong> {{ transaction.timestamp }}</p>
+<p><strong>Description:</strong> {{ transaction.description }}</p>
+{% if transaction.recipient %}
+<p><strong>Recipient:</strong> {{ transaction.recipient.email }}</p>
+{% endif %}
+<a href="{% url 'wallet' %}">Back to Wallet</a>
+{% endblock %}

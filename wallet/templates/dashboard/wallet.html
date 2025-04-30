@@ -1,4 +1,4 @@
-{% extends 'accounts/base.html' %}
+{% extends 'base.html' %}
 
 {% block content %}
 <h2>My Wallet</h2>
@@ -10,9 +10,34 @@
     <a href="{% url 'transfer' %}">Transfer</a>
 </div>
 
-<h3>Recent Transactions</h3>
+<h3>Transaction History</h3>
+
+<!-- Filter Form -->
+<form method="get" action="{% url 'wallet' %}">
+    <div>
+        <label>Transaction Type:</label>
+        <select name="type">
+            <option value="">All</option>
+            {% for value, label in transaction_types.items %}
+            <option value="{{ value }}" {% if request.GET.type == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div>
+        <label>From Date:</label>
+        <input type="date" name="start_date" value="{{ request.GET.start_date }}">
+    </div>
+    <div>
+        <label>To Date:</label>
+        <input type="date" name="end_date" value="{{ request.GET.end_date }}">
+    </div>
+    <button type="submit">Filter</button>
+    <a href="{% url 'wallet' %}">Reset</a>
+</form>
+
+<!-- Transactions List -->
 <ul>
-    {% for transaction in transactions %}
+    {% for transaction in page_obj %}
     <li>
         {{ transaction.transaction_type|title }}: ${{ transaction.amount }}
         <br>
@@ -22,8 +47,38 @@
         <small>To: {{ transaction.recipient.email }}</small>
         {% endif %}
     </li>
+    <li>
+        <a href="{% url 'transaction_detail' transaction.id %}">
+            {{ transaction.transaction_type|title }}: ${{ transaction.amount }}
+        </a>
+    </li>
     {% empty %}
-    <li>No transactions yet.</li>
+    <li>No transactions found.</li>
     {% endfor %}
 </ul>
+
+<!-- Pagination -->
+<div class="pagination">
+    <span class="step-links">
+        {% if page_obj.has_previous %}
+            <a href="?page=1{% if request.GET.type %}&type={{ request.GET.type }}{% endif %}{% if request.GET.start_date %}&start_date={{ request.GET.start_date }}{% endif %}{% if request.GET.end_date %}&end_date={{ request.GET.end_date }}{% endif %}">&laquo; first</a>
+            <a href="?page={{ page_obj.previous_page_number }}{% if request.GET.type %}&type={{ request.GET.type }}{% endif %}{% if request.GET.start_date %}&start_date={{ request.GET.start_date }}{% endif %}{% if request.GET.end_date %}&end_date={{ request.GET.end_date }}{% endif %}">previous</a>
+        {% endif %}
+
+        <span class="current">
+            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}.
+        </span>
+
+        {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}{% if request.GET.type %}&type={{ request.GET.type }}{% endif %}{% if request.GET.start_date %}&start_date={{ request.GET.start_date }}{% endif %}{% if request.GET.end_date %}&end_date={{ request.GET.end_date }}{% endif %}">next</a>
+            <a href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.type %}&type={{ request.GET.type }}{% endif %}{% if request.GET.start_date %}&start_date={{ request.GET.start_date }}{% endif %}{% if request.GET.end_date %}&end_date={{ request.GET.end_date }}{% endif %}">last &raquo;</a>
+        {% endif %}
+    </span>
+</div>
+
+<style>
+    .pagination a {
+        margin: 0 5px;
+    }
+</style>
 {% endblock %}
